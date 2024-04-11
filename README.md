@@ -1,2 +1,2 @@
 # PSCRF
-![PDF Image](KDD2024-framework.pdf)
+![PDF Image](KDD2024-framework.png)
