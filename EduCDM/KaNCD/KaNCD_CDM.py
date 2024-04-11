@@ -1,6 +1,3 @@
-# coding: utf-8
-# 2023/7/3 @ WangFei
-
 import logging
 import torch
 import torch.nn as nn
@@ -10,11 +7,10 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, accuracy_score
 import sys
-sys.path.append('/zjq/zhangdacao/pisa/EduCDM')
 from EduCDM import CDM
 
 import json
-with open('/zjq/zhangdacao/pisa/datasets/dataset_info.json', 'r', encoding='utf-8') as file:
+with open('EduCDM/datasets/dataset_info.json', 'r', encoding='utf-8') as file:
     dataset_info = json.load(file)
 import pickle
 import pandas as pd
@@ -104,16 +100,6 @@ class Net(nn.Module):
             nn.BatchNorm1d(self.emb_dim),
         )
         
-        # self.binary_classifiers = nn.ModuleList([
-        #     nn.Sequential(
-        #         nn.Linear(1, self.hidden_size),
-        #         nn.BatchNorm1d(self.hidden_size),
-        #         nn.ReLU(),
-        #         nn.Linear(self.hidden_size, dataset_info[0]['s_num'][i]),
-        #         nn.Softmax(dim=1)
-        #     ) for i in range(5)
-        # ])
-        
         self.binary_classifiers = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.emb_dim, self.hidden_size),
@@ -180,8 +166,7 @@ class Net(nn.Module):
         sensitive_feature = self.mlp_sensitive(sensitive_feature)
         theta1 = self.student_emb(user)
         exer_emb = self.exercise_emb(item)
-        
-        #print(theta1.shape, sensitive_feature.shape)
+
         Uf_features = self.mlp_combine(torch.cat([theta1, sensitive_feature], dim=-1))
         Ud_features = self.mlp_sensitive_dense(sensitive_feature)
         
@@ -209,27 +194,21 @@ class Net(nn.Module):
         batch, dim = exer_emb.size()
         exer_emb = exer_emb.view(batch, 1, dim).repeat(1, self.knowledge_n, 1)
         
-        #print(exer_emb.shape, knowledge_emb.shape)
         a = torch.sigmoid(self.k_diff_full(exer_emb * knowledge_emb)).view(batch, -1)
         b = torch.sigmoid(self.e_discrimination(item))
         
         Uf = torch.sigmoid(Uf)
         Ud = torch.sigmoid(Ud)
-        #b = torch.sigmoid(b)
         
         alpha = torch.squeeze(torch.sigmoid(self.alpha(user)), -1).unsqueeze(1)
         theta = torch.sigmoid((1-alpha) * Uf + alpha * Ud)
         
-        # batch, dim = theta1.size()
-        # stu_emb = stu_emb.view(batch, 1, dim).repeat(1, self.knowledge_n, 1)
-        # knowledge_emb = self.knowledge_emb.repeat(batch, 1).view(batch, self.knowledge_n, -1)
-        
-        if torch.max(theta != theta) or torch.max(a != a) or torch.max(b != b):  # pragma: no cover
+        if torch.max(theta != theta) or torch.max(a != a) or torch.max(b != b):  
             raise ValueError('ValueError:theta,a,b may contains nan!  The a_range is too large.')
         
         con_theta = torch.mean(self.student_emb.weight.data, dim=0)
         con_theta = con_theta.expand(sensitive.size(0), -1)
-        #sensitive_mean = self.con_sens
+
         if self.sensitive_name == 'escs':
             sensitive_mean = torch.tensor([dataset_info[self.dataset_index]['escs_mean']]).to('cuda:0')
             con_sensitive = sensitive_mean.expand(sensitive.size(0), -1)
@@ -249,17 +228,7 @@ class Net(nn.Module):
         beta = torch.squeeze(torch.sigmoid(self.beta(user)), -1).unsqueeze(1)
         debias_theta = torch.sigmoid(theta - beta * con_theta)
         
-        
-        #return 1 / (1 + F.exp(- F.sum(F.multiply(a, theta), axis=-1) + b))
-        #print(a, theta1)
-        # print(- torch.sum(torch.multiply(a, theta), axis=-1))
-        # print(self.irf(theta, a, b, **self.irf_kwargs))
-        # print(((theta) * a).sum(dim=1, keepdim=True).shape)
-        # print(b.shape)
-        # print((((theta) * a).sum(dim=1, keepdim=True)+b).shape)
-        #stat_emb = torch.sigmoid(self.stat_full(theta1 * knowledge_emb)).view(batch, -1)
         if not train_mode:
-            #print(self.irf(theta, a, b, **self.irf_kwargs))
             if self.mode == 'ours':
                 return self.irf(self.theta_knowledge(debias_theta), a, b, kw), binary_outputs, self.theta_knowledge(debias_theta), kw#[torch.tensor([1] * 512) for i in range(5)]# #[torch.argmax(binary, dim=-1) for binary in binary_outputs]
             else:
@@ -267,7 +236,7 @@ class Net(nn.Module):
         loss_function = nn.BCELoss()
         total_loss = 0
         theta_loss = loss_function(self.irf(self.theta_knowledge(theta), a, b, kw), labels)
-        #print(theta[0], theta1[0])
+
         debias_theta_loss = loss_function(self.irf(self.theta_knowledge(debias_theta), a, b, kw), labels)
         Uf_loss = loss_function(self.irf(self.theta_knowledge(Uf), a, b, kw), labels)
         Ud_loss = loss_function(self.irf(self.theta_knowledge(Ud), a, b, kw), labels)
@@ -282,7 +251,7 @@ class Net(nn.Module):
         total_loss -= Ud_eo_loss
         total_loss += 0.1 * cls_loss
         total_loss += 0.5 * reverse_loss
-        #total_loss = theta_loss
+
         if self.mode == 'ours':
             return total_loss, theta_eo_loss, Ud_eo_loss
         else:
@@ -303,26 +272,19 @@ class Net(nn.Module):
     
     def calc_eo1(self, escs, pred):
         indices = torch.argsort(escs)
-        #print('index:', indices)
 
         n = len(indices)
         q1_index = int(n / 4)
         q3_index = int(3 * n / 4)
 
-        # Extract indices for three groups
         disadv_indices = indices[:q1_index]
         mid_indices = indices[q1_index:q3_index]
         adv_indices = indices[q3_index:]
-        #print(disadv_indices, mid_indices, adv_indices)
 
-        # Use indices to get corresponding pred values
         tpr_disadv = torch.mean(pred[disadv_indices])
         tpr_mid = torch.mean(pred[mid_indices])
         tpr_adv = torch.mean(pred[adv_indices])
             
-        #tpr_disadv, tpr_mid, tpr_adv = torch.tensor(tpr_disadv), torch.tensor(tpr_mid), torch.tensor(tpr_adv)
-        #tpr_disadv, tpr_mid, tpr_adv = tpr_disadv.requires_grad_(), tpr_mid.requires_grad_(), tpr_adv.requires_grad_()
-        ##print(pred[disadv_indices], pred[mid_indices], pred[adv_indices])
         EO = torch.std(torch.stack([tpr_disadv, tpr_mid, tpr_adv]))
         return EO
     
@@ -363,8 +325,6 @@ class KaNCD(CDM):
         loss_function = nn.BCELoss()
 
         trainer = torch.optim.Adam(self.irt_net.parameters(), lr)
-        # for name, param in self.irt_net.named_parameters():
-        #     print(name)
         from torch.optim.lr_scheduler import LambdaLR
         
         def lr_lambda(epochs):
@@ -374,10 +334,8 @@ class KaNCD(CDM):
             final_lr = 0.0001
             
             if epochs < warmup_epochs:
-                # 在 warm-up 阶段使用线性增长
                 return (epochs) / warmup_epochs * initial_lr
             else:
-                # 在 warm-up 结束后，进行线性 decay
                 return max(0.0, 1.0 - (epochs - warmup_epochs) / (decay_epochs - warmup_epochs)) * (initial_lr - final_lr) + final_lr
             
         scheduler = LambdaLR(trainer, lr_lambda=lr_lambda)
@@ -476,8 +434,6 @@ class KaNCD(CDM):
         doa = self.doa_report(user_list, item_list, know_list, y_true, theta_list)['doa']
         
         for task_labels, task_outputs in zip(cls_labels, binary_pred):
-            #print(task_outputs)
-            #predicted_labels = [1 if output > 0.5 else 0 for output in task_outputs]
             predicted_labels = task_outputs
             correct_predictions = sum([1 for pred, label in zip(predicted_labels, task_labels) if pred == label])
             accuracy = correct_predictions / len(task_labels)
@@ -491,7 +447,7 @@ class KaNCD(CDM):
         logging.info("save parameters to %s" % filepath)
 
     def load(self, filepath):
-        self.irt_net.load_state_dict(torch.load(filepath))  # , map_location=lambda s, loc: s
+        self.irt_net.load_state_dict(torch.load(filepath)) 
         logging.info("load parameters from %s" % filepath)
         
     def save_log(self):
@@ -516,8 +472,6 @@ class KaNCD(CDM):
         disadv_count = sum(1 for item in disadv_group if item[2] == 1)
         mid_count = sum(1 for item in mid_group if item[2] == 1)
         adv_count = sum(1 for item in adv_group if item[2] == 1)
-        # print(n)
-        # print(disadv_count, mid_count, adv_count)
 
         tpr_disadv = self.calculate_tpr(disadv_group)
         tpr_mid = self.calculate_tpr(mid_group)
@@ -532,18 +486,6 @@ class KaNCD(CDM):
         EO = np.std([tpr_disadv, tpr_mid, tpr_adv])
         Do = fpr_adv - fpr_disadv
         Du = fnr_disadv - fnr_adv
-        
-        pre_1_disadv = sum(1 for _, pred, _ in disadv_group if pred == 1) / len(disadv_group)
-        pre_1_mid = sum(1 for _, pred, _ in mid_group if pred == 1) / len(mid_group)
-        pre_1_adv = sum(1 for _, pred, _ in adv_group if pred == 1) / len(adv_group)
-        pre_1_all = sum(1 for _, pred, _ in sorted_data if pred == 1) / len(sorted_data)
-        
-        true_1_disadv = sum(1 for _, _, true in disadv_group if true == 1) / len(disadv_group)
-        true_1_mid = sum(1 for _, _, true in mid_group if true == 1) / len(mid_group)
-        true_1_adv = sum(1 for _, _, true in adv_group if true == 1) / len(adv_group)
-        true_1_all = sum(1 for _, _, true in sorted_data if true == 1) / len(sorted_data)
-        print('pre_1:', pre_1_disadv, pre_1_mid, pre_1_adv, pre_1_all)
-        print('true_1:', true_1_disadv, true_1_mid, true_1_adv, true_1_all)
         
         beta = 2
      
