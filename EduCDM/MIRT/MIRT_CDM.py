@@ -1,7 +1,3 @@
-# coding: utf-8
-# 2021/7/1 @ tongshiwei
-
-
 import logging
 import numpy as np
 import torch

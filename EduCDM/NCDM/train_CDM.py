@@ -1,15 +1,5 @@
-'''
-Author: wuyongyu wuyongyu@atomecho.xyz
-Date: 2024-01-13 23:34:47
-LastEditors: wuyongyu wuyongyu@atomecho.xyz
-LastEditTime: 2024-02-02 03:16:24
-FilePath: /zjq/zhangdacao/pisa/EduCDM/EduCDM/IRT/GD/train_CDM.py
-Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
-'''
 import pandas as pd
 import sys
-sys.path.append('/zjq/zhangdacao/pisa/EduCDM')
-sys.path.append('/zjq/zhangdacao/pisa/datasets')
 from utils import *
 from NCDM_CDM import NCDM
 
@@ -37,10 +27,10 @@ def parse_args():
 
 args = parse_args()
 
-with open('/zjq/zhangdacao/pisa/datasets/dataset_info.json', 'r', encoding='utf-8') as file:
+with open('EduCDM/datasets/dataset_info.json', 'r', encoding='utf-8') as file:
     dataset_info = json.load(file)
 print(dataset_info)
-root = '/zjq/zhangdacao/pisa/datasets'
+root = 'EduCDM/pisa/datasets'
 country = dataset_info[args.dataset_index]['country']
 path = os.path.join(root, country)
 print(path)
