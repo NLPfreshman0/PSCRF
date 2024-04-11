@@ -11,8 +11,9 @@ The dataset is located in the 'datasets' directory. We partitioned the dataset a
 More detailed information can be found in the paper.
 
 ## code
-You can easily train using 'train.sh', just be mindful of the path issues.
+You can easily train using 'EduCDM/train.sh', just be mindful of the path issues.
 ```
+cd EduCDM
 sh train.sh
 ```
 
