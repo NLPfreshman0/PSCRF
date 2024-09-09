@@ -7,17 +7,17 @@ from torch import nn
 import torch.nn.functional as F
 from tqdm import tqdm
 import pickle
-from utils import *
-from irt import irt3pl
+from datasets.utils import *
+from EduCDM.IRT.irt import irt3pl
 from sklearn.metrics import roc_auc_score, accuracy_score
-from metrics import *
+#from metrics import *
 import json
 
-with open('EduCDM/datasets/dataset_info.json', 'r', encoding='utf-8') as file:
+with open('../datasets/dataset_info.json', 'r', encoding='utf-8') as file:
     dataset_info = json.load(file)
 
 class IRTNet(nn.Module):
-    def __init__(self, user_num, item_num, value_range=None, a_range=None, irf_kwargs=None, sensitive_name=None, dataset_index=None, mode=None, w=None):
+    def __init__(self, user_num, item_num, value_range=None, a_range=None, irf_kwargs=None, sensitive_name=None, dataset_index=None, mode=None):
         super(IRTNet, self).__init__()
         self.user_num = user_num
         self.item_num = item_num
@@ -35,7 +35,7 @@ class IRTNet(nn.Module):
         self.sensitive_name = sensitive_name
         self.dataset_index = dataset_index
         self.mode = mode
-        self.w = w
+
         
         self.mlp_combine = nn.Sequential(
             nn.Linear(2, self.hidden_size),
@@ -229,8 +229,6 @@ class IRTNet(nn.Module):
         total_loss -= Ud_eo_loss
         total_loss += 0.1 * cls_loss
         total_loss += 0.5 * reverse_loss
-        if self.w != None:
-            total_loss = self.w[0] * ce_loss + self.w[1] * cls_loss + self.w[2] * reverse_loss + self.w[3] * (theta_eo_loss - Ud_eo_loss)
         if self.mode == 'ours':
             total_loss = total_loss
         return total_loss, theta_eo_loss, Ud_eo_loss
@@ -281,10 +279,10 @@ class IRTNet(nn.Module):
 
 
 class IRT(CDM):
-    def __init__(self, user_num, item_num, value_range=None, a_range=None, save_path=None, sensitive_name=None, dataset_index=None, mode=None, w=None):
+    def __init__(self, user_num, item_num, value_range=None, a_range=None, save_path=None, sensitive_name=None, dataset_index=None, mode=None):
         super(IRT, self).__init__()
         self.sensitive_name = sensitive_name
-        self.irt_net = IRTNet(user_num, item_num, value_range, a_range, sensitive_name=sensitive_name, dataset_index=dataset_index, mode=mode, w=w)
+        self.irt_net = IRTNet(user_num, item_num, value_range, a_range, sensitive_name=sensitive_name, dataset_index=dataset_index, mode=mode)
         self.save_path = save_path
         self.train_loss = []
         self.metrics = {'eval_auc':[],
